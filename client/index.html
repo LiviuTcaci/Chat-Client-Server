@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat Client-Server (Extended Requirements)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #messages, #roomMessages {
+      border: 1px solid #ccc;
+      height: 200px;
+      width: 400px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      padding: 5px;
+    }
+    #adminArea {
+      border: 1px dotted #999;
+      margin-top: 10px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+<h1>Chat Client-Server</h1>
+
+<!-- Registration -->
+<div>
+  <h3>Register</h3>
+  <input type="text" id="regUsername" placeholder="Username..." />
+  <input type="password" id="regPassword" placeholder="Password..." />
+  <button id="registerBtn">Register</button>
+</div>
+<hr />
+
+<!-- Forgot Password (New) -->
+<div>
+  <h3>Forgot Password</h3>
+  <input type="text" id="fpUsername" placeholder="Your username..." />
+  <input type="password" id="fpNewPw" placeholder="New password..." />
+  <button id="forgotPwBtn">Reset Password</button>
+</div>
+<hr />
+
+
+<!-- Login -->
+<div>
+  <h3>Login</h3>
+  <input type="text" id="usernameInput" placeholder="Username..." />
+  <input type="password" id="passwordInput" placeholder="Password..." />
+  <button id="loginButton">Login</button>
+</div>
+
+<!-- Public Messages -->
+<div>
+  <h3>Public Chat</h3>
+  <div id="messages"></div>
+  <input type="text" id="publicMsgInput" placeholder="Your public message..." />
+  <button id="sendPublicBtn">Send Public</button>
+  <!-- History & Clear -->
+  <p>
+    <button id="getPublicHistoryBtn">Get Public History</button>
+    <button id="clearPublicBtn">Clear Public Chat</button>
+  </p>
+</div>
+
+<!-- Chat Rooms -->
+<div>
+  <h3>Chat Rooms</h3>
+  <div>
+    <input type="text" id="roomNameInput" placeholder="Room name..." />
+    <button id="createRoomBtn">Create Room</button>
+    <button id="joinRoomBtn">Join Room</button>
+  </div>
+  <div id="roomSection" style="display:none;">
+    <h4>Room: <span id="currentRoomSpan">N/A</span></h4>
+    <div id="roomMessages"></div>
+    <input type="text" id="roomMsgInput" placeholder="Message in room..." />
+    <button id="sendRoomMsgBtn">Send to Room</button>
+    <!-- History & Clear for this room -->
+    <p>
+      <button id="getRoomHistoryBtn">Get Room History</button>
+      <button id="clearRoomBtn">Clear This Room Chat</button>
+    </p>
+  </div>
+</div>
+
+<!-- Private Messages -->
+<div>
+  <h3>Private Messages</h3>
+  <input type="text" id="privateToInput" placeholder="Recipient user..." />
+  <input type="text" id="privateMsgInput" placeholder="Private message..." />
+  <button id="sendPrivateBtn">Send Private</button>
+</div>
+
+<!-- Admin Area -->
+<div id="adminArea" style="display:none;">
+  <h3>Admin Tools</h3>
+
+  <!-- Change user role -->
+  <p>
+    <label>Change Role of user:</label>
+    <input type="text" id="changeRoleUserInput" placeholder="username..." />
+    <select id="changeRoleSelect">
+      <option value="user">user</option>
+      <option value="admin">admin</option>
+    </select>
+    <button id="changeRoleBtn">Change Role</button>
+  </p>
+
+  <!-- Block / Unblock user -->
+  <p>
+    <label>Block/Unblock user:</label>
+    <input type="text" id="blockUserInput" placeholder="Username..." />
+    <select id="blockActionSelect">
+      <option value="block">Block</option>
+      <option value="unblock">Unblock</option>
+    </select>
+    <button id="blockUserBtn">Block/Unblock</button>
+  </p>
+
+  <!-- Moderation -->
+  <p>
+    <label>Moderation:</label><br />
+    <button id="moderateMsgBtn">Delete a Message (demo)</button>
+  </p>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+  const socket = io("http://localhost:5001");
+
+  // Registration
+  const regUsername = document.getElementById("regUsername");
+  const regPassword = document.getElementById("regPassword");
+  const registerBtn = document.getElementById("registerBtn");
+
+  // Login
+  const usernameInput = document.getElementById("usernameInput");
+  const passwordInput = document.getElementById("passwordInput");
+  const loginButton = document.getElementById("loginButton");
+
+  // Public
+  const messagesDiv = document.getElementById("messages");
+  const publicMsgInput = document.getElementById("publicMsgInput");
+  const sendPublicBtn = document.getElementById("sendPublicBtn");
+  const getPublicHistoryBtn = document.getElementById("getPublicHistoryBtn");
+  const clearPublicBtn = document.getElementById("clearPublicBtn");
+
+  // Rooms
+  const roomNameInput = document.getElementById("roomNameInput");
+  const createRoomBtn = document.getElementById("createRoomBtn");
+  const joinRoomBtn = document.getElementById("joinRoomBtn");
+  const roomSection = document.getElementById("roomSection");
+  const currentRoomSpan = document.getElementById("currentRoomSpan");
+  const roomMessagesDiv = document.getElementById("roomMessages");
+  const roomMsgInput = document.getElementById("roomMsgInput");
+  const sendRoomMsgBtn = document.getElementById("sendRoomMsgBtn");
+  const getRoomHistoryBtn = document.getElementById("getRoomHistoryBtn");
+  const clearRoomBtn = document.getElementById("clearRoomBtn");
+
+  // Private
+  const privateToInput = document.getElementById("privateToInput");
+  const privateMsgInput = document.getElementById("privateMsgInput");
+  const sendPrivateBtn = document.getElementById("sendPrivateBtn");
+
+  // Admin
+  const adminArea = document.getElementById("adminArea");
+  const changeRoleUserInput = document.getElementById("changeRoleUserInput");
+  const changeRoleSelect = document.getElementById("changeRoleSelect");
+  const changeRoleBtn = document.getElementById("changeRoleBtn");
+
+  const blockUserInput = document.getElementById("blockUserInput");
+  const blockActionSelect = document.getElementById("blockActionSelect");
+  const blockUserBtn = document.getElementById("blockUserBtn");
+  const moderateMsgBtn = document.getElementById("moderateMsgBtn");
+
+  // 1. We define references for new Forgot Password elements
+  const fpUsername = document.getElementById("fpUsername");
+  const fpNewPw = document.getElementById("fpNewPw");
+  const forgotPwBtn = document.getElementById("forgotPwBtn");
+
+  // 2. Forgot Password logic
+  forgotPwBtn.addEventListener("click", async () => {
+    const user = fpUsername.value.trim();
+    const newPw = fpNewPw.value.trim();
+    if (!user || !newPw) {
+      appendMessage(messagesDiv, "[Error] Provide username & new password for reset.");
+      return;
+    }
+    try {
+      const resp = await fetch("/forgot_password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, new_password: newPw })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        appendMessage(messagesDiv, "[Forgot Pw] " + data.message);
+      } else {
+        appendMessage(messagesDiv, "[Error] " + (data.error || "unknown error"));
+      }
+    } catch (err) {
+      appendMessage(messagesDiv, "[Error] " + err.message);
+    }
+  });
+
+  function appendMessage(divElement, msg) {
+    const p = document.createElement("p");
+    p.textContent = msg;
+    divElement.appendChild(p);
+    divElement.scrollTop = divElement.scrollHeight;
+  }
+
+  // Register
+  registerBtn.addEventListener("click", async () => {
+    const user = regUsername.value.trim();
+    const pass = regPassword.value.trim();
+    if (!user || !pass) {
+      appendMessage(messagesDiv, "[Error] Provide username & password to register.");
+      return;
+    }
+    try {
+      const resp = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        appendMessage(messagesDiv, "[Register] " + data.message);
+      } else {
+        appendMessage(messagesDiv, "[Register Error] " + (data.error || "unknown error"));
+      }
+    } catch (err) {
+      appendMessage(messagesDiv, "[Register Error] " + err.message);
+    }
+  });
+
+  // Connect / Disconnect
+  socket.on("connect", () => {
+    console.log("[Info] Connected to server, sid =", socket.id);
+  });
+  socket.on("disconnect", () => {
+    appendMessage(messagesDiv, "[Info] Disconnected from server.");
+  });
+
+  // server messages
+  socket.on("server_message", (data) => {
+    if (data.text) {
+      appendMessage(messagesDiv, "[Server] " + data.text);
+    }
+  });
+  socket.on("user_notification", (data) => {
+    if (data.text) {
+      appendMessage(messagesDiv, "[Notification] " + data.text);
+    }
+  });
+  socket.on("public_message", (data) => {
+    appendMessage(messagesDiv, `${data.username} (public): ${data.text}`);
+  });
+  socket.on("room_created", (data) => {
+    appendMessage(messagesDiv, `Room created: ${data.room}`);
+  });
+  socket.on("joined_room", (data) => {
+    roomSection.style.display = "block";
+    currentRoomSpan.textContent = data.room;
+    appendMessage(roomMessagesDiv, data.text);
+  });
+  socket.on("room_message", (data) => {
+    appendMessage(roomMessagesDiv, `${data.username}: ${data.text}`);
+  });
+  socket.on("private_message", (data) => {
+    appendMessage(messagesDiv, `[Private] ${data.from}: ${data.text}`);
+  });
+
+  // Login
+loginButton.addEventListener("click", () => {
+  const user = usernameInput.value.trim();
+  const pass = passwordInput.value.trim();
+  if (!user) {
+    appendMessage(messagesDiv, "[Error] Provide username.");
+    return;
+  }
+  socket.emit("authenticate", { username: user, password: pass });
+  appendMessage(messagesDiv, "[Info] Attempting login: " + user);
+});
+
+// Instead of a local check for (user === 'admin' && pass === 'admin123'),
+// we wait for the server to send us the role:
+socket.on("login_success", (data) => {
+  // data.role can be 'admin' or 'user'
+  if (data.role === "admin") {
+    adminArea.style.display = "block";
+    appendMessage(messagesDiv, `[Info] Welcome Admin: ${data.username}`);
+  } else {
+    adminArea.style.display = "none";
+    appendMessage(messagesDiv, `[Info] Welcome User: ${data.username}`);
+  }
+});
+
+  // Public Message
+  sendPublicBtn.addEventListener("click", () => {
+    const msg = publicMsgInput.value.trim();
+    if (msg) {
+      socket.emit("public_message", { text: msg });
+      publicMsgInput.value = "";
+    }
+  });
+
+  // Create Room
+  createRoomBtn.addEventListener("click", () => {
+    const room = roomNameInput.value.trim();
+    if (room) {
+      socket.emit("create_room", { room });
+      roomNameInput.value = "";
+    }
+  });
+
+  // Join Room
+  joinRoomBtn.addEventListener("click", () => {
+    const room = roomNameInput.value.trim();
+    if (room) {
+      socket.emit("join_room", { room });
+    }
+  });
+
+  // Room Message
+  sendRoomMsgBtn.addEventListener("click", () => {
+    const msg = roomMsgInput.value.trim();
+    const room = currentRoomSpan.textContent;
+    if (msg && room) {
+      socket.emit("room_message", { room, text: msg });
+      roomMsgInput.value = "";
+    }
+  });
+
+  // Private Message
+  sendPrivateBtn.addEventListener("click", () => {
+    const toUser = privateToInput.value.trim();
+    const text = privateMsgInput.value.trim();
+    if (!toUser || !text) {
+      appendMessage(messagesDiv, "[Error] Provide recipient & message.");
+      return;
+    }
+    socket.emit("private_message", { to: toUser, text });
+    privateMsgInput.value = "";
+  });
+
+  // Admin - Change Role
+  changeRoleBtn.addEventListener("click", () => {
+    const targetUser = changeRoleUserInput.value.trim();
+    const newRole = changeRoleSelect.value;
+    if (!targetUser) {
+      appendMessage(messagesDiv, "[Error] Provide username for role change.");
+      return;
+    }
+    socket.emit("change_role", { target: targetUser, new_role: newRole });
+  });
+
+  // Admin - Block/Unblock
+  blockUserBtn.addEventListener("click", () => {
+    const target = blockUserInput.value.trim();
+    const action = blockActionSelect.value; // "block" or "unblock"
+    if (!target) {
+      appendMessage(messagesDiv, "[Error] Provide user to block/unblock.");
+      return;
+    }
+    socket.emit("block_user", { target, action });
+    blockUserInput.value = "";
+  });
+
+  // Admin - Moderation
+  moderateMsgBtn.addEventListener("click", () => {
+    socket.emit("moderate_message", {
+      room: "",
+      action: "delete"
+    });
+    appendMessage(messagesDiv, "[Admin] Moderation command (delete) sent.");
+  });
+
+  // Get Public History
+  getPublicHistoryBtn.addEventListener("click", () => {
+    socket.emit("get_history", { type: "public" });
+  });
+
+  // Clear Public Chat
+  clearPublicBtn.addEventListener("click", () => {
+    socket.emit("clear_chat", { type: "public" });
+  });
+
+  // Get Room History
+  getRoomHistoryBtn.addEventListener("click", () => {
+    const room = currentRoomSpan.textContent;
+    if (room === "N/A") {
+      appendMessage(roomMessagesDiv, "[Error] You are not in a room.");
+      return;
+    }
+    socket.emit("get_history", { type: "room", room: room });
+  });
+
+  // Clear This Room
+  clearRoomBtn.addEventListener("click", () => {
+    const room = currentRoomSpan.textContent;
+    if (room === "N/A") {
+      appendMessage(roomMessagesDiv, "[Error] You are not in a room.");
+      return;
+    }
+    socket.emit("clear_chat", { type: "room", room: room });
+  });
+
+  // History Response
+  socket.on("history_response", (data) => {
+    // data = { type: "public" or "room", messages: [...] }
+    if (data.type === "public") {
+      // Clear messagesDiv then append
+      messagesDiv.innerHTML = "";
+      data.messages.forEach(m => {
+        appendMessage(messagesDiv, `${m.username} (public): ${m.text}`);
+      });
+    } else if (data.type === "room") {
+      const r = data.room;
+      // Clear roomMessagesDiv then append
+      roomMessagesDiv.innerHTML = "";
+      data.messages.forEach(m => {
+        appendMessage(roomMessagesDiv, `${m.username}: ${m.text}`);
+      });
+    }
+  });
+</script>
+</body>
+</html>
